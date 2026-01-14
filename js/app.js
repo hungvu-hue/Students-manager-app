@@ -25,6 +25,13 @@ document.addEventListener('DOMContentLoaded', function () {
             // High Priority: Pull data from cloud immediately after login
             await Storage.pullAllFromCloud();
 
+            // Reset login button if it exists
+            const loginBtn = document.getElementById('loginBtn');
+            if (loginBtn) {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Đăng nhập';
+            }
+
             showAppContent();
             updateTeacherName(teacher.name);
             if (window.WordEngine) window.WordEngine.init();
@@ -563,7 +570,10 @@ async function handleLogin() {
         // 1. Try Firebase Authentication
         const userCredential = await auth.signInWithEmailAndPassword(email, password);
         // Authentication is handled by onAuthStateChanged listener
+        // Note: Don't reset button here - onAuthStateChanged will handle UI
     } catch (error) {
+        console.error("Login Error:", error);
+
         // 2. If Firebase fails (e.g., user doesn't exist yet but is in local Auth list)
         // Check our local "Authorized" list
         const authorizedTeachers = Storage.getAuthorizedTeachers();
@@ -574,15 +584,25 @@ async function handleLogin() {
                 // Create Firebase account on the fly for existing local users
                 await auth.createUserWithEmailAndPassword(email, password);
                 showToast("Đã thiết lập tài khoản mây cho bạn!");
+                // Don't reset button - onAuthStateChanged will handle UI
             } catch (createError) {
                 console.error("Firebase Sync Error:", createError);
-                // If creation fails but password matches, still alert something
-                alert('Lỗi đồng bộ mây: ' + error.message);
+                // Reset button on error
+                loginBtn.disabled = false;
+                loginBtn.textContent = originalText;
+
+                // Show appropriate error message
+                if (createError.code === 'auth/api-key-not-valid') {
+                    alert('Lỗi cấu hình Firebase. Vui lòng liên hệ quản trị viên.');
+                } else {
+                    alert('Lỗi đồng bộ mây: ' + createError.message);
+                }
             }
         } else {
-            alert('Email hoặc mật khẩu không đúng!');
+            // Invalid credentials - reset button
             loginBtn.disabled = false;
             loginBtn.textContent = originalText;
+            alert('Email hoặc mật khẩu không đúng!');
         }
     }
 }
