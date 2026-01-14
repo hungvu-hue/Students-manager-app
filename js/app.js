@@ -25,13 +25,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     Storage.saveTeacher(teacher);
                 }
 
-                // High Priority: Pull data from cloud immediately after login
-                try {
-                    await Storage.pullAllFromCloud();
-                } catch (cloudError) {
-                    console.warn("Cloud sync failed, continuing with local data:", cloudError);
-                }
-
                 // Reset login button if it exists
                 const loginBtn = document.getElementById('loginBtn');
                 if (loginBtn) {
@@ -46,6 +39,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Initialize optional modules
                 if (window.WordEngine) window.WordEngine.init();
                 if (window.Mailbox) window.Mailbox.init();
+
+                // Background Priority: Pull data from cloud asynchronously
+                // We do NOT await this to avoid blocking the login UI
+                Storage.pullAllFromCloud().then(() => {
+                    console.log("Background cloud sync complete");
+                    // Refresh data again to populate with cloud data
+                    refreshAppData();
+                }).catch(cloudError => {
+                    console.warn("Background cloud sync failed:", cloudError);
+                });
 
                 console.log("App content shown successfully");
             } catch (error) {
