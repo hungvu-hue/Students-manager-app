@@ -483,11 +483,9 @@ function showLoginPage() {
     const mainNav = document.querySelector('.main-nav');
     if (mainNav) mainNav.style.display = 'none';
 
-    // Hide Header Icons on Login
-    ['notificationBtn', 'appSettingsBtn', 'logoutBtn', 'changePassBtn'].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) btn.style.display = 'none';
-    });
+    // Hide User Info Section (mailbox, notifications, settings, logout)
+    const userInfo = document.querySelector('.user-info');
+    if (userInfo) userInfo.style.display = 'none';
 
     // Reset navigation
     document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -520,11 +518,9 @@ function showAppContent() {
     const mainNav = document.querySelector('.main-nav');
     if (mainNav) mainNav.style.display = 'block';
 
-    // Show Header Icons
-    ['notificationBtn', 'appSettingsBtn', 'logoutBtn', 'changePassBtn'].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) btn.style.display = '';
-    });
+    // Show User Info Section
+    const userInfo = document.querySelector('.user-info');
+    if (userInfo) userInfo.style.display = 'flex';
 
     // Get all nav buttons
     const navButtons = document.querySelectorAll('.nav-btn:not(#navAdminBtn)');
