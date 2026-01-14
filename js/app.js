@@ -536,7 +536,11 @@ function showAppContent() {
         }
     }
 
-    document.getElementById('loginPage').classList.remove('active');
+    const loginPage = document.getElementById('loginPage');
+    if (loginPage) {
+        loginPage.classList.remove('active');
+        loginPage.style.display = 'none'; // Force hide to prevent hanging
+    }
     document.body.style.overflow = ''; // Ensure scrollbar is active
 
     // Refresh application data (dropdowns, state) for the current user
@@ -624,6 +628,13 @@ async function handleLogin() {
             loginBtn.disabled = false;
             loginBtn.textContent = originalText;
             alert('Email hoặc mật khẩu không đúng!');
+        }
+    } finally {
+        // ALWAYS reset button state after attempt finishes to prevents hanging
+        const loginBtn = document.getElementById('loginBtn');
+        if (loginBtn) {
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Đăng nhập';
         }
     }
 }
