@@ -6,37 +6,55 @@ document.addEventListener('DOMContentLoaded', function () {
     // Firebase Auth Listener
     auth.onAuthStateChanged(async (user) => {
         if (user) {
-            // Check if local teacher session exists, if not, create from Firebase user
-            let teacher = Storage.getTeacher();
-            if (!teacher || teacher.email !== user.email) {
-                // If the user name is not yet in Firebase auth, we'll try to get it from our local authorized list
-                const authList = Storage.getAuthorizedTeachers();
-                const localAuth = authList.find(t => t.email.toLowerCase() === user.email.toLowerCase());
+            console.log("User authenticated:", user.email);
 
-                teacher = {
-                    id: user.uid,
-                    name: localAuth ? localAuth.name : user.displayName || 'Giáo viên',
-                    email: user.email,
-                    role: localAuth ? localAuth.role : 'teacher'
-                };
-                Storage.saveTeacher(teacher);
+            try {
+                // Check if local teacher session exists, if not, create from Firebase user
+                let teacher = Storage.getTeacher();
+                if (!teacher || teacher.email !== user.email) {
+                    // If the user name is not yet in Firebase auth, we'll try to get it from our local authorized list
+                    const authList = Storage.getAuthorizedTeachers();
+                    const localAuth = authList.find(t => t.email.toLowerCase() === user.email.toLowerCase());
+
+                    teacher = {
+                        id: user.uid,
+                        name: localAuth ? localAuth.name : user.displayName || 'Giáo viên',
+                        email: user.email,
+                        role: localAuth ? localAuth.role : 'teacher'
+                    };
+                    Storage.saveTeacher(teacher);
+                }
+
+                // High Priority: Pull data from cloud immediately after login
+                try {
+                    await Storage.pullAllFromCloud();
+                } catch (cloudError) {
+                    console.warn("Cloud sync failed, continuing with local data:", cloudError);
+                }
+
+                // Reset login button if it exists
+                const loginBtn = document.getElementById('loginBtn');
+                if (loginBtn) {
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Đăng nhập';
+                }
+
+                // ALWAYS show app content when user is authenticated
+                showAppContent();
+                updateTeacherName(teacher.name);
+
+                // Initialize optional modules
+                if (window.WordEngine) window.WordEngine.init();
+                if (window.Mailbox) window.Mailbox.init();
+
+                console.log("App content shown successfully");
+            } catch (error) {
+                console.error("Error in onAuthStateChanged:", error);
+                // Even if there's an error, try to show app content
+                showAppContent();
             }
-
-            // High Priority: Pull data from cloud immediately after login
-            await Storage.pullAllFromCloud();
-
-            // Reset login button if it exists
-            const loginBtn = document.getElementById('loginBtn');
-            if (loginBtn) {
-                loginBtn.disabled = false;
-                loginBtn.textContent = 'Đăng nhập';
-            }
-
-            showAppContent();
-            updateTeacherName(teacher.name);
-            if (window.WordEngine) window.WordEngine.init();
-            if (window.Mailbox) window.Mailbox.init();
         } else {
+            console.log("No user authenticated");
             showLoginPage();
         }
     });
