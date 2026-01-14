@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Học sinh - Giáo viên</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/drag_styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <!-- SheetJS for Excel processing -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- jsPDF and AutoTable for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Word Export Libraries -->
+    <script src="https://unpkg.com/pizzip@3.1.4/dist/pizzip.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/docxtemplater@3.42.3/build/docxtemplater.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4a6fa5">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3429/3429149.png">
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker registered'))
+                    .catch(err => console.log('SW registration failed: ', err));
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-container">
+            <div class="logo">
+                <i class="fas fa-chalkboard-teacher"></i>
+                <h1>Quản lý Học sinh</h1>
+            </div>
+            <div class="user-info">
+                <span id="teacherName" style="font-weight: 600;">Giáo viên</span>
+                <button id="mailboxBtn" class="btn-icon" title="Hòm thư" style="position: relative;">
+                    <i class="fas fa-envelope"></i>
+                    <span id="unreadMessageBadge" class="notification-badge"
+                        style="display: none; background-color: #e74c3c;">0</span>
+                </button>
+                <button id="notificationBtn" class="btn-icon" title="Thông báo" style="position: relative;">
+                    <i class="fas fa-bell"></i>
+                    <span id="notificationBadge" class="notification-badge" style="display: none;">0</span>
+                </button>
+                <button id="appSettingsBtn" class="btn-icon" title="Cài đặt hệ thống">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button id="logoutBtn" class="btn-icon" title="Đăng xuất">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="main-nav">
+        <div class="nav-container">
+            <button class="nav-btn active" data-page="classroom">
+                <i class="fas fa-chair"></i>
+                <span>Sơ đồ lớp</span>
+            </button>
+            <button class="nav-btn" data-page="students">
+                <i class="fas fa-users"></i>
+                <span>Danh sách</span>
+            </button>
+            <button class="nav-btn" data-page="grades">
+                <i class="fas fa-chart-bar"></i>
+                <span>Điểm số</span>
+            </button>
+            <button class="nav-btn" data-page="reports">
+                <i class="fas fa-file-alt"></i>
+                <span>Báo cáo</span>
+            </button>
+            <button id="navAdminBtn" class="nav-btn" data-page="admin" style="display: none;">
+                <i class="fas fa-user-shield"></i>
+                <span>Quản trị</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Login Page -->
+        <section id="loginPage" class="page active">
+            <div class="login-container">
+                <div class="login-card">
+                    <h2><i class="fas fa-user-tie"></i> Đăng nhập Hệ thống</h2>
+                    <div class="form-group">
+                        <label for="teacherEmail">Tên đăng nhập:</label>
+                        <input type="text" id="teacherEmail" placeholder="Nhập tên đăng nhập...">
+                    </div>
+                    <div class="form-group">
+                        <label for="teacherPassword">Mật khẩu:</label>
+                        <input type="password" id="teacherPassword" placeholder="Nhập mật khẩu">
+                    </div>
+                    <button id="loginBtn" class="btn-primary">Đăng nhập</button>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Classroom Page -->
+        <section id="classroomPage" class="page">
+            <div class="page-header">
+                <h2 style="display: flex; align-items: center; gap: 15px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-chair"></i>
+                        <span>Sơ đồ lớp học</span>
+                        <button id="gridSettingsBtn" class="btn-icon-small" title="Cài đặt sơ đồ">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <button id="transferClassBtn" class="btn-secondary"
+                            title="Chuyển lớp hiện tại cho giáo viên khác"
+                            style="font-size: 0.85rem; padding: 4px 10px; border: 1px solid #f39c12; color: #f39c12; background: white; opacity: 0.4; cursor: not-allowed; display: flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-paper-plane"></i> Chuyển lớp
+                        </button>
+                    </div>
+                </h2>
+                <div class="page-actions">
+                    <!-- Custom School Dropdown -->
+                    <div class="custom-dropdown" id="schoolDropdown">
+                        <div class="dropdown-trigger" id="schoolDropdownTrigger">
+                            <div style="display: flex; flex-direction: column;">
+                                <span style="font-size: 0.8em; color: gray;">Trường học</span>
+                                <span class="selected-text" id="currentSchoolName">Chọn trường</span>
+                            </div>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="dropdown-menu" id="schoolDropdownMenu">
+                            <!-- Options -->
+                        </div>
+                    </div>
+
+                    <!-- Custom Class Dropdown -->
+                    <div class="custom-dropdown" id="classDropdown">
+                        <div class="dropdown-trigger" id="classDropdownTrigger">
+                            <div style="display: flex; flex-direction: column;">
+                                <span style="font-size: 0.8em; color: gray;">Lớp học</span>
+                                <span class="selected-text" id="currentClassName">Chọn lớp</span>
+                            </div>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="dropdown-menu" id="classDropdownMenu">
+                            <!-- Options -->
+                        </div>
+                    </div>
+
+                    <!-- Custom Subject Dropdown (Manage Subjects) -->
+                    <div class="custom-dropdown" id="subjectDropdown">
+                        <div class="dropdown-trigger" id="subjectDropdownTrigger">
+                            <div style="display: flex; flex-direction: column;">
+                                <span style="font-size: 0.8em; color: gray;">Môn học</span>
+                                <span class="selected-text" id="currentSubjectName">Tất cả</span>
+                            </div>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="dropdown-menu" id="subjectDropdownMenu">
+                            <!-- Options -->
+                        </div>
+                    </div>
+
+                    <button id="addSchoolBtn" class="btn-primary">
+                        <i class="fas fa-school"></i> Thêm trường học
+                    </button>
+
+                    <button id="addClassBtn" class="btn-primary">
+                        <i class="fas fa-chalkboard-user"></i> Thêm lớp học
+                    </button>
+
+                    <button id="addSubjectBtn" class="btn-primary">
+                        <i class="fas fa-book"></i> Thêm môn học
+                    </button>
+
+
+
+                    <!-- Receive class button removed - now using notification bell in header -->
+                    <!-- "Thêm HS" button removed as per previous step, now handled via seat -->
+                </div>
+            </div>
+
+            <!-- Classroom Layout -->
+            <div class="classroom-container">
+                <!-- Teacher desk and sort button removed -->
+                <div class="seats-grid" id="classroomGrid">
+                    <!-- Seats will be generated by JavaScript -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Students List Page -->
+        <section id="studentsPage" class="page">
+            <div class="page-header">
+                <h2><i class="fas fa-users"></i> Danh sách học sinh</h2>
+                <div class="page-actions" style="display: flex; gap: 10px; align-items: center;">
+                    <div class="import-section"
+                        style="display: flex; gap: 10px; align-items: center; background: #f0f2f5; padding: 8px 15px; border-radius: 8px;">
+                        <input type="text" id="googleSheetLink" placeholder="Link Google Sheets..."
+                            style="width: 200px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <button id="importDriveBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.9rem;">
+                            <i class="fab fa-google-drive"></i> Nhập từ Drive
+                        </button>
+                        <div style="width: 1px; height: 20px; background: #ccc; margin: 0 5px;"></div>
+                        <input type="file" id="localFileImport" accept=".xlsx, .xls, .csv" hidden>
+                        <button id="importFileBtn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.9rem;">
+                            <i class="fas fa-file-import"></i> Tải từ máy
+                        </button>
+                    </div>
+                    <button id="addStudentBtn" class="btn-primary" style="padding: 8px 15px;">
+                        <i class="fas fa-user-plus"></i> Thêm HS
+                    </button>
+                    <button id="addAttendanceBtn" class="btn-primary" style="padding: 8px 15px;">
+                        <i class="fas fa-calendar-check"></i> Điểm danh
+                    </button>
+                    <!-- Excel Export Dropdown -->
+                    <div class="custom-dropdown" id="exportStudentsDropdown" style="min-width: 140px;">
+                        <button id="exportStudentsBtn" class="btn-secondary" style="padding: 8px 15px; width: 100%;">
+                            <i class="fas fa-file-excel"></i> Xuất Excel <i class="fas fa-chevron-down"
+                                style="font-size: 0.8em; margin-left: 5px;"></i>
+                        </button>
+                        <div class="dropdown-menu" id="exportStudentsMenu">
+                            <div class="dropdown-item" data-mode="current">
+                                <span><i class="fas fa-chalkboard"></i> Lớp hiện tại</span>
+                            </div>
+                            <div class="dropdown-item" data-mode="all">
+                                <span><i class="fas fa-school"></i> Tất cả các lớp</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="search-box">
+                        <input type="text" id="searchStudent" placeholder="Tìm học sinh...">
+                        <i class="fas fa-search"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="students-table-container">
+                <table class="students-table">
+                    <thead>
+                        <tr id="studentsTableHeadRow">
+                            <th>STT</th>
+                            <th>Họ và tên</th>
+                            <th>Ngày sinh</th>
+                            <th>Giới tính</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentsTableBody">
+                        <!-- Students will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Grades Page -->
+        <section id="gradesPage" class="page">
+            <div class="page-header">
+                <h2><i class="fas fa-chart-bar"></i> Quản lý điểm số</h2>
+                <div class="page-actions">
+                    <button id="showGradesChartBtn" class="btn-secondary">
+                        <i class="fas fa-chart-pie"></i> Thống kê
+                    </button>
+                    <button id="addGradeColumnBtn" class="btn-primary">
+                        <i class="fas fa-table-columns"></i> Thêm cột điểm
+                    </button>
+                    <button id="saveGradesBtn" class="btn-secondary">
+                        <i class="fas fa-save"></i> Lưu bảng điểm
+                    </button>
+                    <!-- Excel Export Dropdown -->
+                    <div class="custom-dropdown" id="exportGradesDropdown" style="min-width: 140px;">
+                        <button id="exportGradesBtn" class="btn-secondary" style="padding: 8px 15px; width: 100%;">
+                            <i class="fas fa-file-excel"></i> Xuất Excel <i class="fas fa-chevron-down"
+                                style="font-size: 0.8em; margin-left: 5px;"></i>
+                        </button>
+                        <div class="dropdown-menu" id="exportGradesMenu">
+                            <div class="dropdown-item" data-mode="current">
+                                <span><i class="fas fa-chalkboard"></i> Lớp hiện tại</span>
+                            </div>
+                            <div class="dropdown-item" data-mode="all">
+                                <span><i class="fas fa-school"></i> Tất cả các lớp</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="grades-content-layout">
+                <div class="grades-table-container">
+                    <table class="students-table" id="gradesTable">
+                        <thead>
+                            <tr id="gradesTableHeader">
+                                <th class="sticky-col" style="text-align: center;">STT</th>
+                                <th class="sticky-col">Họ và tên</th>
+                                <!-- Dynamic columns -->
+                            </tr>
+                        </thead>
+                        <tbody id="gradesTableBody">
+                            <!-- Data rows -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Grades Chart Section -->
+                <div id="gradesChartSection"
+                    style="display: none; margin-top: 20px; padding: 20px; background: white; border-radius: 8px; box-shadow: var(--box-shadow);">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 id="gradesChartTitle"><i class="fas fa-chart-column"></i> Phân tích phổ điểm</h3>
+                        <button onclick="document.getElementById('gradesChartSection').style.display='none'"
+                            class="btn-icon-small">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div style="position: relative; height: 350px; width: 100%; min-height: 350px;">
+                        <canvas id="gradesBarChart"></canvas>
+                    </div>
+
+                    <!-- Smart Analysis Section -->
+                    <div id="smartAnalysisContainer"
+                        style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px;">
+                        <h4
+                            style="color: var(--primary-color); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-brain"></i> Phân tích Kết quả Thông minh
+                        </h4>
+                        <div id="aiCommentaryText"
+                            style="line-height: 1.6; font-size: 0.95rem; color: #444; background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid var(--primary-color); white-space: pre-wrap;">
+                            Nhấn Thống kê để xem phân tích chi tiết...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Reports Page -->
+        <section id="reportsPage" class="page">
+            <div class="page-header" style="justify-content: space-between; align-items: start;">
+                <div>
+                    <h2><i class="fas fa-file-alt"></i> Báo cáo & Thống kê</h2>
+                    <p id="reportSubTitle" style="font-size: 0.9rem; color: #666; margin-top: 5px;">Tổng hợp và xuất dữ
+                        liệu hiệu quả</p>
+                </div>
+                <div class="page-actions" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                    <!-- Global Actions -->
+                    <div style="display: flex; gap: 8px;">
+                        <button id="exportFullExcelBtn" class="btn-primary" style="background: #27ae60;"
+                            onclick="Reports.exportExcel(document.getElementById('currentClassName').textContent)">
+                            <i class="fas fa-file-excel"></i> Xuất Excel
+                        </button>
+
+                        <button id="exportAllWordBtn" class="btn-secondary"
+                            style="border-color: #2b5797; color: #2b5797; background: #f0f7ff;">
+                            <i class="fas fa-file-word"></i> Xuất Word
+                        </button>
+
+                        <button id="batchExportWordBtn" class="btn-secondary"
+                            style="border-color: #4a6fa5; color: #4a6fa5; background: #f0f7ff;">
+                            <i class="fas fa-copy"></i> Xuất hàng loạt
+                        </button>
+                    </div>
+
+                    <div class="template-selector-card"
+                        style="display: flex; align-items: center; gap: 10px; background: #fff; padding: 6px 15px; border-radius: 30px; border: 1px solid #d0d7de; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                        <span style="font-size: 0.85rem; font-weight: 600; color: #555;"><i
+                                class="fas fa-file-invoice"></i> Mẫu:</span>
+                        <input type="file" id="wordTemplateInput" accept=".docx" hidden>
+                        <button id="uploadWordTemplateBtn" class="btn-icon-small" title="Tải mẫu Word (.docx)"
+                            style="background: #eef2f7;">
+                            <i class="fas fa-upload"></i>
+                        </button>
+                        <span id="templateStatus" style="font-size: 0.8rem; color: #666; font-weight: 500;">
+                            [Chưa nạp]
+                        </span>
+                        <button id="removeWordTemplateBtn" class="btn-icon-small" title="Xóa mẫu hiện tại"
+                            style="color: #e74c3c; display: none; background: #fff;">
+                            <i class="fas fa-times-circle"></i>
+                        </button>
+                        <div style="width: 1px; height: 15px; background: #eee; margin: 0 5px;"></div>
+                        <button id="wordHelpBtn" class="btn-icon-small" title="Hướng dẫn & Code mẫu"
+                            style="background: #4a6fa5; color: white;">
+                            <i class="fas fa-code"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="reports-layout" style="display: grid; grid-template-columns: 1fr 300px; gap: 20px;">
+                <div class="reports-container">
+                    <p style="text-align: center; color: #666; padding: 2rem;">Đang tải dữ liệu báo cáo...</p>
+                </div>
+
+                <aside class="reports-sidebar">
+                    <div class="info-card"
+                        style="background: white; padding: 20px; border-radius: 12px; box-shadow: var(--box-shadow); margin-bottom: 20px;">
+                        <h4 style="margin-bottom: 15px; font-size: 1rem; color: var(--primary-color);"><i
+                                class="fas fa-tags"></i> Từ khóa Quản lý học sinh</h4>
+                        <p style="font-size: 0.8rem; color: #666; margin-bottom: 12px;">Copy và paste vào file Word của
+                            bạn:</p>
+                        <div class="tag-list" style="display: flex; flex-direction: column; gap: 8px;">
+                            <div class="tag-item" onclick="copyToClipboard('{ten_truong}')" title="Click để copy">
+                                <code>{ten_truong}</code> <span>Tên trường</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{ten_lop}')" title="Click để copy">
+                                <code>{ten_lop}</code> <span>Tên lớp</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{ten_mon_hoc}')" title="Click để copy">
+                                <code>{ten_mon_hoc}</code> <span>Tên môn học</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{ho_ten}')" title="Click để copy">
+                                <code>{ho_ten}</code> <span>Họ tên</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{ngay_sinh}')" title="Click để copy">
+                                <code>{ngay_sinh}</code> <span>Ngày sinh</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{gioi_tinh}')" title="Click để copy">
+                                <code>{gioi_tinh}</code> <span>Giới tính</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{si_so}')" title="Click để copy">
+                                <code>{si_so}</code> <span>Sĩ số</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{chuyen_can}')" title="Click để copy">
+                                <code>{chuyen_can}</code> <span>Chuyên cần</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{diem_so_chon}')" title="Click để copy">
+                                <code>{diem_so_chon}</code> <span>Điểm số (sơ đồ)</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{nhan_xet}')" title="Click để copy">
+                                <code>{nhan_xet}</code> <span>Nhận xét</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{top_xuat_sac}')" title="Click để copy">
+                                <code>{top_xuat_sac}</code> <span>Tốp HS xuất sắc</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{nhom_cai_thien}')" title="Click để copy">
+                                <code>{nhom_cai_thien}</code> <span>Nhóm cải thiện</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{cham_chi}')" title="Click để copy">
+                                <code>{cham_chi}</code> <span>Học sinh chăm chỉ</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{vang_mat}')" title="Click để copy">
+                                <code>{vang_mat}</code> <span>Vắng mặt</span>
+                            </div>
+                            <div class="tag-item" onclick="copyToClipboard('{#students}')" title="Click để copy"><code
+                                    style="background: #fff3cd;">{#students}</code> <span>Bắt đầu lặp</span></div>
+                            <div class="tag-item" onclick="copyToClipboard('{/students}')" title="Click để copy"><code
+                                    style="background: #fff3cd;">{/students}</code> <span>Kết thúc lặp</span></div>
+                        </div>
+
+                        <div
+                            style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #eee; font-size: 0.75rem; color: #888;">
+                            <i class="fas fa-info-circle"></i> Click vào mã để sao chép nhanh.
+                        </div>
+                    </div>
+
+                    <!-- Custom Word Tags Management -->
+                    <div class="info-card"
+                        style="background: white; padding: 20px; border-radius: 12px; box-shadow: var(--box-shadow); margin-bottom: 20px;">
+                        <h4 style="margin-bottom: 15px; font-size: 1rem; color: var(--primary-color);"><i
+                                class="fas fa-plus-circle"></i> Từ khóa tự chọn</h4>
+                        <div id="customTagsList"
+                            style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
+                            <!-- Custom tags will be listed here -->
+                        </div>
+                        <div class="add-custom-tag"
+                            style="display: flex; flex-direction: column; gap: 8px; background: #f8f9fa; padding: 10px; border-radius: 8px;">
+                            <input type="text" id="customTagName" placeholder="Tên mã (vd: nx_mau)"
+                                style="font-size: 0.8rem; padding: 5px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+                                <label style="font-size: 0.75rem; color: #666; font-weight: 600;">Nội dung:</label>
+                                <button onclick="Reports.insertSeparator()" type="button"
+                                    style="font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; border: 1px solid #4a90e2; background: #fff; color: #4a90e2; cursor: pointer;">
+                                    <i class="fas fa-level-down-alt"></i> Bấm ngắt nội dung
+                                </button>
+                            </div>
+                            <textarea id="customTagValue" placeholder="Nội dung 1 | Nội dung 2 | Nội dung 3..."
+                                style="font-size: 0.8rem; padding: 10px; border: 1px solid #ddd; border-radius: 4px; min-height: 100px; resize: vertical; line-height: 1.5;"></textarea>
+                            <div
+                                style="font-size: 0.75rem; color: #888; background: #fff; padding: 8px; border-radius: 6px; border: 1px dashed #ced4da; line-height: 1.4;">
+                                <i class="fas fa-info-circle" style="color: #4a90e2;"></i> Sử dụng ký tự <b>|</b> (gạch
+                                đứng) để tách giữa các nội dung nhận xét khác nhau.
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 5px;">
+                                <label style="font-size: 0.75rem; color: #666; font-weight: 600;">Chế độ chèn:</label>
+                                <select id="customTagMode"
+                                    style="font-size: 0.8rem; padding: 4px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <option value="fixed">Gắn cố định (nd đầu tiên)</option>
+                                    <option value="random">Ngẫu nhiên (trộn nội dung)</option>
+                                    <option value="sequence">Thứ tự (lần lượt theo DS)</option>
+                                </select>
+                            </div>
+                            <button id="saveCustomTagBtn" onclick="Reports.addCustomTag()" class="btn-primary"
+                                style="font-size: 0.8rem; padding: 6px; justify-content: center; width: 100%; margin-top: 5px;">
+                                <i class="fas fa-plus-circle"></i> Lưu từ khóa mới
+                            </button>
+                        </div>
+                    </div>
+
+
+                </aside>
+            </div>
+        </section>
+
+        <!-- Admin Page -->
+        <section id="adminPage" class="page">
+            <div class="page-header">
+                <h2><i class="fas fa-user-shield"></i> Quản lý tài khoản giáo viên</h2>
+                <div class="page-actions">
+                </div>
+            </div>
+            <div id="adminControls"></div>
+
+            <div class="admin-layout" style="display: grid; grid-template-columns: 1fr 350px; gap: 20px;">
+                <div class="admin-main">
+                    <div class="admin-container"
+                        style="background: white; padding: 20px; border-radius: 8px; box-shadow: var(--box-shadow);">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h4 style="margin: 0; color: var(--primary-color);">Danh sách giáo viên</h4>
+                            <button id="createGroupBtn" class="btn-primary"
+                                style="font-size: 0.85rem; background: #8e44ad;">
+                                <i class="fas fa-users-rectangle"></i> Tạo nhóm cho mục đã chọn
+                            </button>
+                        </div>
+                        <table class="students-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;"><input type="checkbox" id="selectAllTeachers"></th>
+                                    <th class="stt-col" style="width: 50px;">STT</th>
+                                    <th>Email</th>
+                                    <th>Họ và tên</th>
+                                    <th>Vai trò</th>
+                                    <th>Trạng thái</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="teacherTableBody">
+                                <!-- Teachers list will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="admin-sidebar">
+                    <div class="info-card"
+                        style="background: white; padding: 20px; border-radius: 12px; box-shadow: var(--box-shadow);">
+                        <h4 style="margin-bottom: 15px; font-size: 1rem; color: var(--primary-color);">
+                            <i class="fas fa-layer-group"></i> Nhóm giáo viên
+                        </h4>
+                        <div id="teacherGroupsList" style="display: flex; flex-direction: column; gap: 10px;">
+                            <!-- Groups will be listed here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Add Teacher Modal -->
+        <div id="addTeacherModal" class="modal">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h3>Cấp quyền giáo viên mới</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="addTeacherForm">
+                        <div class="form-group">
+                            <label for="newTeacherEmail">Email *</label>
+                            <input type="email" id="newTeacherEmail" placeholder="email@truonghoc.edu.vn" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newTeacherNameAdmin">Họ và tên</label>
+                            <input type="text" id="newTeacherNameAdmin" placeholder="Nguyễn Văn A">
+                        </div>
+                        <p style="font-size: 0.8rem; color: #666; margin-top: 10px;">
+                            <i class="fas fa-info-circle"></i> Mật khẩu mặc định sẽ là <b>123456</b>
+                        </p>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary close-modal">Hủy</button>
+                            <button type="submit" class="btn-primary">Cấp quyền</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Student Detail Modal -->
+        <div id="studentModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Thông tin học sinh</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="student-info">
+                        <div class="student-avatar">
+                            <i class="fas fa-user-graduate"></i>
+                        </div>
+                        <div class="student-details">
+                            <h4 id="modalStudentName">Nguyễn Văn A</h4>
+                            <p id="modalStudentId">Mã HS: HS001</p>
+                            <p id="modalStudentDob">Ngày sinh: 15/05/2007</p>
+                            <p id="modalStudentGender">Giới tính: Nam</p>
+                            <p id="modalStudentNotes"
+                                style="margin-top: 10px; font-style: italic; color: var(--gray-color);"></p>
+                        </div>
+                    </div>
+
+                    <div class="grades-section">
+                        <h4><i class="fas fa-chart-line"></i> Kết quả học tập</h4>
+                        <div class="subject-grades">
+                            <!-- Subject grades will be loaded here -->
+                        </div>
+                        <div class="average-grade">
+                            <h5>Điểm trung bình: <span id="averageScore">8.5</span></h5>
+                            <div class="grade-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 85%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="conduct-grade" style="margin-top: 15px;">
+                            <h5 style="display: flex; justify-content: space-between;">
+                                <span>Kết quả rèn luyện:</span>
+                                <span id="conductScore"
+                                    style="color: var(--warning-color); font-weight: 700;">8.0</span>
+                            </h5>
+                            <div class="grade-progress">
+                                <input type="range" id="conductRange" min="0" max="10" step="0.1" value="8"
+                                    style="width: 100%; cursor: pointer;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="notes-section">
+                        <div style="margin-bottom: 1rem;">
+                            <h4><i class="fas fa-sticky-note"></i> Nhận xét & Đánh giá</h4>
+                        </div>
+
+                        <!-- Quick Comment Bank -->
+                        <div id="quickCommentBank"
+                            style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 8px;">
+                            <span style="font-size: 0.8rem; color: #666; width: 100%;">Gợi ý nhanh (theo học
+                                lực):</span>
+                            <!-- Categories will be loaded here -->
+                        </div>
+
+                        <textarea id="studentNotes"
+                            placeholder="Nhập nhận xét hoặc chọn từ gợi ý bên trên..."></textarea>
+
+                        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
+                            <button id="exportWordBtn" class="btn-secondary"
+                                style="font-size: 0.85rem; color: #2b5797; border-color: #2b5797;">
+                                <i class="fas fa-file-word"></i> Xuất Word (.docx)
+                            </button>
+                            <button id="saveNotesBtn" class="btn-primary" style="font-size: 0.85rem;">
+                                <i class="fas fa-save"></i> Lưu nhận xét
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Student Modal -->
+        <div id="addStudentModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Thêm học sinh mới</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="addStudentForm">
+                        <div class="form-group" style="text-align: center;">
+                            <label for="newStudentAvatar" style="display:block; margin-bottom: 10px;">Ảnh đại
+                                diện</label>
+                            <div class="avatar-upload-container" style="margin: 0 auto;">
+                                <div class="current-avatar-preview" id="avatarPreview">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <input type="file" id="newStudentAvatar" accept="image/*" hidden>
+                                <button type="button" class="btn-secondary" id="uploadAvatarBtn">
+                                    <i class="fas fa-camera"></i> Chọn ảnh
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="newStudentName">Họ và tên *</label>
+                                <input type="text" id="newStudentName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="newStudentDob">Ngày sinh</label>
+                                <input type="date" id="newStudentDob">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="newStudentGender">Giới tính</label>
+                                <select id="newStudentGender">
+                                    <option value="Nam">Nam</option>
+                                    <option value="Nữ">Nữ</option>
+                                    <option value="Khác">Khác</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="newStudentConduct">Kết quả rèn luyện (0-10)</label>
+                                <input type="number" id="newStudentConduct" min="0" max="10" step="0.5" value="8">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="newStudentNotes">Ghi chú</label>
+                            <textarea id="newStudentNotes" placeholder="Nhập ghi chú..."
+                                style="resize: vertical; min-height: 80px;"></textarea>
+                        </div>
+                        <input type="hidden" id="editStudentId">
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary close-modal">Hủy</button>
+                            <button type="submit" class="btn-primary" id="saveStudentBtn">Thêm học sinh</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        </div>
+
+        <!-- Add School Modal -->
+        <div id="addSchoolModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Thêm trường học mới</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="addSchoolForm">
+                        <div class="form-group">
+                            <label for="newSchoolName">Tên trường học *</label>
+                            <input type="text" id="newSchoolName" placeholder="VD: Trường THPT Chu Văn An" required>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary close-modal">Hủy</button>
+                            <button type="submit" class="btn-primary">Thêm trường học</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Class Modal -->
+        <div id="addClassModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Thêm lớp học mới</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="addClassForm">
+                        <div class="form-group">
+                            <label for="newClassName">Tên lớp học *</label>
+                            <input type="text" id="newClassName" placeholder="VD: Lớp 10A3" required>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary close-modal">Hủy</button>
+                            <button type="submit" class="btn-primary">Thêm lớp học</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Subject Modal -->
+        <div id="addSubjectModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Thêm môn học mới</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="addSubjectForm">
+                        <div class="form-group">
+                            <label for="newSubjectName">Tên môn học *</label>
+                            <input type="text" id="newSubjectName" placeholder="VD: Lịch Sử" required>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary close-modal">Hủy</button>
+                            <button type="submit" class="btn-primary">Thêm môn học</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <!-- Grid Settings Modal -->
+        <div id="gridSettingsModal" class="modal">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h3>Cài đặt sơ đồ</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="gridSettingsForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="gridRows">Số hàng</label>
+                                <input type="number" id="gridRows" min="1" max="20" value="10">
+                            </div>
+                            <div class="form-group">
+                                <label for="gridCols">Số cột</label>
+                                <input type="number" id="gridCols" min="1" max="20" value="6">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="gridSize">Kích thước ô (%)</label>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <input type="range" id="gridSize" min="50" max="200" value="100" style="flex: 1;">
+                                <span id="gridSizeValue">100%</span>
+                            </div>
+                        </div>
+                        <div class="form-group"
+                            style="margin-top: 1.5rem; border-top: 1px solid #eee; padding-top: 1.5rem;">
+                            <button type="button" id="deleteAllStudentsBtn" class="btn-secondary"
+                                style="color: var(--danger-color); border-color: var(--danger-color); width: 100%; justify-content: center;">
+                                <i class="fas fa-trash-alt"></i> Xóa tất cả học sinh
+                            </button>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary close-modal">Hủy</button>
+                            <button type="submit" class="btn-primary">Áp dụng</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <!-- Add Grade Column Modal -->
+        <div id="addGradeColModal" class="modal">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h3>Thêm cột điểm mới</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="addGradeColForm">
+                        <div class="form-group">
+                            <label for="newGradeColName">Tên cột điểm *</label>
+                            <input type="text" id="newGradeColName" placeholder="VD: Kiểm tra 1 tiết" required>
+                        </div>
+
+                        <div class="form-actions" style="margin-top: 20px;">
+                            <button type="button" class="btn-secondary close-modal">Hủy</button>
+                            <button type="submit" class="btn-primary">Thêm cột</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <!-- Formula Modal -->
+        <div id="formulaModal" class="modal">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h3>Thiết lập công thức</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Cột kết quả: <span id="formulaTargetCol"
+                                style="font-weight: bold; color: var(--primary-color);"></span></label>
+                    </div>
+                    <div class="form-group">
+                        <label style="margin-bottom: 8px; display: block;">Các cột điểm có sẵn (Click để thêm):</label>
+                        <div id="formulaColumnTags"
+                            style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">
+                            <!-- Tags will be loaded here -->
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="formulaInput">Nhập công thức:</label>
+                        <textarea id="formulaInput" placeholder="Ví dụ: (Miệng + 15 phút) / 2" rows="3"
+                            style="font-family: monospace; font-size: 1.1rem; padding: 10px;"></textarea>
+                        <p style="font-size: 0.8rem; color: #666; margin-top: 5px;">Hỗ trợ các phép tính: +, -, *, /,
+                            ().</p>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary close-modal">Hủy</button>
+                        <button type="button" class="btn-primary" id="applyFormulaBtn">Lưu công thức</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Transfer Class Modal -->
+        <div id="transferClassModal" class="modal">
+            <div class="modal-content" style="max-width: 450px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-paper-plane"></i> Chuyển lớp cho giáo viên khác</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p style="margin-bottom: 15px; color: #666;">
+                        Bạn đang chuyển lớp <strong id="transferClassNameDisplay"></strong>.
+                        Sau khi chuyển thành công, lớp này sẽ bị xóa khỏi tài khoản của bạn.
+                    </p>
+                    <form id="transferClassForm">
+                        <div class="form-group">
+                            <label for="transferEmailInput">Email người nhận *</label>
+                            <input type="email" id="transferEmailInput" placeholder="nhap-email@teacher.com" required>
+                        </div>
+
+                        <!-- Teacher Quick Select -->
+                        <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
+                            <label style="font-size: 0.85rem; color: #666; display: block; margin-bottom: 8px;">
+                                <i class="fas fa-search"></i> Hoặc chọn nhanh từ danh sách:
+                            </label>
+                            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                                <select id="transferGroupSelect"
+                                    style="flex: 1; font-size: 0.85rem; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <option value="">-- Chọn nhóm giáo viên --</option>
+                                </select>
+                            </div>
+                            <div id="transferTeacherList"
+                                style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; background: #f9fafb; padding: 8px; border-radius: 4px; border: 1px solid #eee;">
+                                <!-- Teachers will be loaded here based on group selection -->
+                                <p style="font-size: 0.75rem; color: #999; text-align: center;">Chọn nhóm để xem thành
+                                    viên</p>
+                            </div>
+                        </div>
+
+                        <div class="form-actions" style="margin-top: 20px;">
+                            <button type="button" class="btn-secondary close-modal">Hủy</button>
+                            <button type="submit" class="btn-primary" style="background-color: #f39c12;">Chuyển
+                                lớp</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Word Template Guide Modal -->
+        <div id="wordHelpModal" class="modal">
+            <div class="modal-content" style="max-width: 700px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-book"></i> Hướng dẫn Mẫu Word Chuẩn</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body" style="line-height: 1.6;">
+                    <section style="margin-bottom: 20px;">
+                        <h4 style="color: var(--primary-color);">1. Cấu trúc xuất cả lớp (Báo cáo hàng loạt)</h4>
+                        <p>Để xuất danh sách học sinh vào cùng 1 file (mỗi em 1 trang hoặc 1 dòng), bạn <b>bắt buộc</b>
+                            phải dùng cặp thẻ lặp:</p>
+                        <pre
+                            style="background: #f4f4f4; padding: 15px; border-radius: 8px; font-family: monospace; border-left: 5px solid #27ae60; margin: 10px 0;">
+{#students}
+Họ và tên: {ho_ten}
+Điểm trung bình: {diem_tb}
+Nhận xét: {nhan_xet}
+(Chèn ngắt trang ở đây nếu muốn mỗi em một phiếu riêng)
+{/students}</pre>
+                    </section>
+
+                    <section style="margin-bottom: 20px;">
+                        <h4 style="color: var(--primary-color);">2. Cách khắc phục lỗi định dạng (Quan trọng)</h4>
+                        <p>Lỗi <i>"Duplicate open tags"</i> xảy ra khi Word tự chèn mã ẩn vào giữa tên thẻ. Cách sửa:
+                        </p>
+                        <ul style="margin-left: 20px;">
+                            <li>Bôi đen đoạn văn bản chứa thẻ <code>{...}</code></li>
+                            <li>Nhấn phím <b>Ctrl + Space</b> để xóa sạch định dạng.</li>
+                            <li>Tải lại file lên hệ thống.</li>
+                        </ul>
+                    </section>
+
+                    <div style="background: #fff9db; padding: 15px; border-radius: 8px; border: 1px solid #ffe066;">
+                        <h5 style="color: #856404; margin-bottom: 5px;"><i class="fas fa-exclamation-triangle"></i> Lưu
+                            ý</h5>
+                        <p style="font-size: 0.9rem;">Không copy-paste trực tiếp từ website vào Word. Hãy gõ tay hoặc
+                            dán bằng chế độ <b>Keep Text Only</b>.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Receive Class Modal -->
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <p>Ứng dụng Quản lý Học sinh &copy; 2023 - Phiên bản 1.0</p>
+        <p>Dữ liệu được lưu trữ cục bộ trên thiết bị của bạn</p>
+    </footer>
+
+    <!-- App Settings Modal (Backup/Restore) -->
+    <div id="appSettingsModal" class="modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3>Cài đặt hệ thống</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section" style="margin-bottom: 1.5rem;">
+                    <h4><i class="fas fa-user-circle"></i> Thông tin tài khoản</h4>
+                    <div
+                        style="background: #f0f7ff; padding: 15px; border-radius: 8px; border: 1px solid #cce5ff; margin-top: 10px;">
+                        <div style="margin-bottom: 5px; font-size: 0.9rem; color: #666;">Tên đăng nhập (Email):</div>
+                        <div
+                            style="display: flex; align-items: center; gap: 10px; color: var(--primary-color); margin-bottom: 10px;">
+                            <i class="fas fa-envelope"></i>
+                            <span id="settingsUserEmail"
+                                style="font-weight: bold; font-size: 1.1rem; user-select: all;">Loading...</span>
+                        </div>
+                        <div
+                            style="border-top: 1px solid #dae1e7; padding-top: 8px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="margin-bottom: 3px; font-size: 0.8rem; color: #666;">Họ và tên:</div>
+                                <div style="display: flex; align-items: center; gap: 10px; color: #333;">
+                                    <i class="fas fa-user"></i>
+                                    <span id="settingsUserName" style="font-weight: 500;">Loading...</span>
+                                </div>
+                            </div>
+                            <button id="changePassBtn" class="btn-primary"
+                                style="font-size: 0.75rem; padding: 4px 10px; background: #4a6fa5;">
+                                <i class="fas fa-key"></i> Đổi mật khẩu
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h4><i class="fas fa-database"></i> Dữ liệu & Sao lưu</h4>
+                    <p style="font-size: 0.9rem; color: #666; margin-bottom: 1.5rem;">
+                        Xuất tất cả dữ liệu (Trường, Lớp, Môn, Học sinh) ra file để sao lưu hoặc chuyển sang tài khoản
+                        khác.
+                    </p>
+
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button id="exportDataBtn" class="btn-primary" style="justify-content: center;">
+                            <i class="fas fa-download"></i> Xuất toàn bộ hệ thống (.json)
+                        </button>
+                        <button id="exportCurrentClassBtn" class="btn-secondary"
+                            style="justify-content: center; color: var(--primary-color); border-color: var(--primary-color);">
+                            <i class="fas fa-file-export"></i> Xuất dữ liệu lớp hiện tại (.json)
+                        </button>
+
+                        <div style="margin: 10px 0; border-top: 1px solid #eee; padding-top: 10px;">
+                            <input type="file" id="importDataInput" accept=".json" hidden>
+                            <button id="importDataBtn" class="btn-secondary"
+                                style="width: 100%; justify-content: center; border-color: var(--primary-color);">
+                                <i class="fas fa-upload"></i> Nhập dữ liệu từ file
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section"
+                    style="margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1.5rem;">
+                    <h4><i class="fas fa-share-nodes"></i> Chia sẻ & Kết nối</h4>
+                    <div class="form-group"
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <label for="shareStatusToggle" style="margin-bottom: 0;">Trạng thái chia sẻ hiện tại</label>
+                        <label class="switch">
+                            <input type="checkbox" id="shareStatusToggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+
+                    <div id="sharingOptions" style="display: none; margin-top: 1rem; animation: slideIn 0.3s ease;">
+                        <div class="form-group">
+                            <label>Link chia sẻ (Lớp hiện tại)</label>
+                            <div style="display: flex; gap: 5px;">
+                                <input type="text" id="shareLinkInput" readonly
+                                    style="flex: 1; background: #f9fafb; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                                <button id="copyShareLinkBtn" class="btn-icon-small" title="Copy">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Mời qua Email</label>
+                            <div style="display: flex; gap: 5px;">
+                                <input type="email" id="shareEmailInput" placeholder="nhap-email@teacher.com"
+                                    style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                                <button id="sendEmailNoticeBtn" class="btn-primary"
+                                    style="padding: 0 15px; border-radius: 4px;">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p style="font-size: 0.8rem; color: #e67e22; margin-top: 10px;"><i
+                                class="fas fa-info-circle"></i> Khi tắt chia sẻ, người khác sẽ không thể truy cập lại dữ
+                            liệu này.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- JavaScript Files -->
+    <script src="js/storage.js"></script>
+    <script src="js/comment_bank.js"></script>
+    <script src="js/word_engine.js"></script>
+    <script src="js/mailbox.js"></script>
+    <script src="js/classroom.js"></script>
+    <script src="js/classroom_transfer.js"></script>
+    <script src="js/grades.js"></script>
+    <script src="js/reports.js"></script>
+    <script src="js/app.js"></script>
+    <!-- Change Password Modal (Self) -->
+    <div id="changePasswordModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-key"></i> Đổi mật khẩu</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="changePasswordForm">
+                    <div class="form-group">
+                        <label>Mật khẩu hiện tại</label>
+                        <input type="password" id="oldPassword" required placeholder="******">
+                    </div>
+                    <div class="form-group">
+                        <label>Mật khẩu mới</label>
+                        <input type="password" id="newPassword" required placeholder="Mật khẩu mới">
+                    </div>
+                    <div class="form-group">
+                        <label>Xác nhận mật khẩu</label>
+                        <input type="password" id="confirmPassword" required placeholder="Xác nhận mật khẩu">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary close-modal">Hủy</button>
+                        <button type="submit" class="btn-primary">Cập nhật</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin: Reset Password Modal -->
+    <div id="resetPasswordModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-shield"></i> Cấp mật khẩu mới</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 15px; font-size: 0.9rem; color: #666;">
+                    Đang đặt lại mật khẩu cho: <br>
+                    <strong id="resetTeacherName">---</strong> (<span id="resetTeacherEmail">---</span>)
+                </p>
+                <form id="resetPasswordForm">
+                    <div class="form-group">
+                        <label>Mật khẩu mới (Bỏ trống để reset về 123456)</label>
+                        <input type="password" id="newResetPassword" placeholder="123456">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary close-modal">Hủy</button>
+                        <button type="submit" class="btn-primary" style="background-color: #f39c12;">Xác nhận đặt
+                            lại</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin: View Group Members Modal -->
+    <div id="viewGroupMembersModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-users-gear"></i> Chi tiết nhóm: <span id="viewGroupName"></span></h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="groupMembersList"
+                    style="display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto;">
+                    <!-- Members will be listed here -->
+                </div>
+                <div class="form-actions" style="margin-top: 20px;">
+                    <button class="btn-secondary close-modal">Đóng</button>
+                    <button id="deleteGroupBtn" class="btn-secondary" style="color: #e74c3c; border-color: #e74c3c;">Xóa
+                        nhóm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Mailbox Modal -->
+    <div id="mailboxModal" class="modal">
+        <div class="modal-content"
+            style="max-width: 950px; height: 85vh; display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; border: none; box-shadow: 0 20px 50px rgba(0,0,0,0.2);">
+            <div class="modal-header"
+                style="background: linear-gradient(135deg, #f39c12, #e67e22); color: white; padding: 20px 25px; border-bottom: none;">
+                <h3 style="margin: 0; font-weight: 700; letter-spacing: 0.5px; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <i class="fas fa-envelope-open-text" style="margin-right: 10px;"></i> HÒM THƯ CÁ NHÂN
+                </h3>
+                <button class="close-modal"
+                    style="color: white; opacity: 1; font-size: 1.5rem; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));">&times;</button>
+            </div>
+            <div class="modal-body"
+                style="flex: 1; display: grid; grid-template-columns: 320px 1fr; overflow: hidden; padding: 0; background: #fff;">
+                <!-- Sidebar List -->
+                <div class="mailbox-list"
+                    style="background: #f8f9fc; border-right: 1px solid #edf1f7; display: flex; flex-direction: column; overflow: hidden;">
+                    <div style="padding: 20px;">
+                        <button id="composeBtn" class="btn-primary"
+                            style="width: 100%; height: 48px; border-radius: 12px; background: linear-gradient(to right, #00b09b, #96c93d); border: none; font-weight: 600; box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3); transition: transform 0.2s;">
+                            <i class="fas fa-plus-circle" style="margin-right: 8px;"></i> Soạn tin mới
+                        </button>
+                    </div>
+                    <div id="messageItemsList"
+                        style="flex: 1; overflow-y: auto; padding: 0 15px 20px 15px; scrollbar-width: thin;">
+                        <!-- Messages listed here -->
+                    </div>
+                </div>
+
+                <!-- Main Detail View -->
+                <div class="mailbox-detail"
+                    style="display: flex; flex-direction: column; background: #fff; overflow: hidden; position: relative;">
+                    <div id="messageDetailEmpty"
+                        style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fff;">
+                        <div
+                            style="width: 120px; height: 120px; background: #f0f4ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+                            <i class="fas fa-paper-plane" style="font-size: 3rem; color: #4a90e2; opacity: 0.5;"></i>
+                        </div>
+                        <h4 style="color: #334155; margin-bottom: 8px;">Bắt đầu cuộc trò chuyện</h4>
+                        <p style="color: #64748b; font-size: 0.9rem;">Chọn một hội thoại từ danh sách để xem nội dung
+                        </p>
+                    </div>
+
+                    <div id="messageDetailContent" style="display: none; height: 100%; flex-direction: column;">
+                        <!-- Detail Header -->
+                        <div
+                            style="padding: 18px 25px; background: #fff; border-bottom: 1px solid #f1f5f9; z-index: 10;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="overflow: hidden;">
+                                    <h4 id="msgDetailSubject"
+                                        style="margin: 0 0 4px 0; font-size: 1.15rem; color: #1e293b; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    </h4>
+                                    <div id="msgDetailStatus"
+                                        style="font-size: 0.8rem; color: #10b981; display: flex; align-items: center;">
+                                        <span
+                                            style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; margin-right: 6px;"></span>
+                                        Trực tuyến
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 12px;">
+                                    <button id="replyMsgBtn" class="btn-icon"
+                                        style="width: 40px; height: 40px; background: #f1f5f9; color: #64748b; border-radius: 10px; transition: all 0.2s;"
+                                        title="Phản hồi">
+                                        <i class="fas fa-reply"></i>
+                                    </button>
+                                    <button id="deleteMsgBtn" class="btn-icon"
+                                        style="width: 40px; height: 40px; background: #f1f5f9; color: #ef4444; border-radius: 10px; transition: all 0.2s;"
+                                        title="Xóa hội thoại">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chat View -->
+                        <div id="chatHistoryView"
+                            style="flex: 1; overflow-y: auto; padding: 25px; background: #fdfdfd; display: flex; flex-direction: column; gap: 18px; scroll-behavior: smooth;">
+                            <div id="msgDetailBody" style="display: none;"></div>
+                        </div>
+
+                        <!-- Fixed Reply Bar -->
+                        <div
+                            style="padding: 20px 25px; background: #fff; border-top: 1px solid #f1f5f9; box-shadow: 0 -4px 15px rgba(0,0,0,0.02);">
+                            <div
+                                style="display: flex; gap: 12px; align-items: flex-end; background: #f8fafc; padding: 8px; border-radius: 16px; border: 1px solid #e2e8f0;">
+                                <textarea id="quickReplyContent" placeholder="Viết phản hồi của bạn..."
+                                    style="flex: 1; min-height: 48px; max-height: 150px; padding: 12px 15px; border: none; background: transparent; font-size: 0.95rem; resize: none; outline: none; color: #1e293b;"></textarea>
+                                <button id="sendQuickReplyBtn"
+                                    style="width: 48px; height: 48px; background: #4a90e2; color: white; border: none; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: all 0.2s; box-shadow: 0 4px 10px rgba(74, 144, 226, 0.3);">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compose Message Modal -->
+    <div id="composeMessageModal" class="modal">
+        <div class="modal-content"
+            style="max-width: 550px; border-radius: 16px; overflow: hidden; border: none; box-shadow: 0 15px 40px rgba(0,0,0,0.15);">
+            <div class="modal-header"
+                style="background: linear-gradient(135deg, #00b09b, #96c93d); color: white; padding: 18px 25px;">
+                <h3 style="margin: 0; font-weight: 600; font-size: 1.2rem;">
+                    <i class="fas fa-edit" style="margin-right: 10px;"></i> Soạn Tin Nhắn Mới
+                </h3>
+                <button class="close-modal" style="color: white; opacity: 0.8;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 25px; background: #fff;">
+                <form id="composeMessageForm">
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label for="msgToEmail"
+                            style="display: block; font-weight: 600; color: #334155; margin-bottom: 8px; font-size: 0.9rem;">Người
+                            nhận *</label>
+                        <div style="display: flex; gap: 10px;">
+                            <div style="position: relative; flex: 1;">
+                                <i class="fas fa-at"
+                                    style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.9rem;"></i>
+                                <input type="email" id="msgToEmail" placeholder="email@giao-vien.com" required
+                                    style="width: 100%; height: 44px; padding: 0 15px 0 35px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.95rem; outline: none; transition: border-color 0.2s;">
+                            </div>
+                            <select id="msgQuickSelectGroup"
+                                style="width: 160px; height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.85rem; color: #475569; outline: none; cursor: pointer;">
+                                <option value="">Chọn từ nhóm...</option>
+                            </select>
+                        </div>
+                        <div id="msgQuickSelectTeachers"
+                            style="max-height: 150px; overflow-y: auto; margin-top: 8px; display: none; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); position: absolute; z-index: 100; width: calc(100% - 50px);">
+                            <!-- Teachers list for quick select -->
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label for="msgSubject"
+                            style="display: block; font-weight: 600; color: #334155; margin-bottom: 8px; font-size: 0.9rem;">Tiêu
+                            đề *</label>
+                        <input type="text" id="msgSubject" placeholder="Nhập tiêu đề cuộc trò chuyện..." required
+                            style="width: 100%; height: 44px; padding: 0 15px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.95rem; outline: none;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 25px;">
+                        <label for="msgContent"
+                            style="display: block; font-weight: 600; color: #334155; margin-bottom: 8px; font-size: 0.9rem;">Nội
+                            dung tin nhắn *</label>
+                        <textarea id="msgContent" placeholder="Nhập nội dung chi tiết..." required
+                            style="width: 100%; min-height: 160px; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.95rem; outline: none; resize: vertical; line-height: 1.6;"></textarea>
+                    </div>
+                    <div class="form-actions"
+                        style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 10px;">
+                        <button type="button" class="btn-secondary close-modal"
+                            style="height: 44px; padding: 0 25px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; font-weight: 600; cursor: pointer;">Hủy</button>
+                        <button type="submit" class="btn-primary"
+                            style="height: 44px; padding: 0 30px; border-radius: 10px; border: none; background: linear-gradient(to right, #4a90e2, #357abd); color: #fff; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(74, 144, 226, 0.25);">Gửi
+                            tin nhắn</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Batch Word Export Modal -->
+    <div id="batchWordModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; border-radius: 12px; overflow: hidden;">
+            <div class="modal-header" style="background: var(--primary-color); color: white;">
+                <h3><i class="fas fa-copy"></i> Xuất Word hàng loạt</h3>
+                <span class="close-modal" onclick="closeModal('batchWordModal')">&times;</span>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <p style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">Chọn các trường/lớp bạn muốn tạo file
+                    nhận xét mẫu riêng biệt (mỗi lớp 1 file):</p>
+
+                <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                    <button type="button" class="btn-secondary btn-sm" onclick="WordEngine.toggleAllSchools(true)"
+                        style="padding: 5px 12px;">Chọn tất cả</button>
+                    <button type="button" class="btn-secondary btn-sm" onclick="WordEngine.toggleAllSchools(false)"
+                        style="padding: 5px 12px;">Bỏ chọn tất cả</button>
+                </div>
+
+                <div id="batchSchoolList"
+                    style="max-height: 400px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; padding: 15px; background: #fafafa;">
+                    <!-- School and Class selection will be rendered here -->
+                </div>
+
+                <div
+                    style="margin-top: 20px; padding: 15px; background: #fff8e1; border-radius: 8px; font-size: 0.85rem; color: #856404; border: 1px solid #ffeeba;">
+                    <i class="fas fa-info-circle"></i> Hệ thống sẽ tạo một file <strong>.zip</strong> chứa các file Word
+                    riêng biệt cho từng lớp đã chọn. Đảm bảo bạn đã chọn ít nhất một lớp học.
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 15px 20px; background: #f8fafc; border-top: 1px solid #eee;">
+                <button type="button" class="btn-secondary" onclick="closeModal('batchWordModal')">Hủy</button>
+                <button type="button" id="startBatchExportBtn" class="btn-primary"
+                    onclick="WordEngine.startBatchExport()"><i class="fas fa-download"></i> Bắt đầu xuất file</button>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

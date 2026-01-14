@@ -1,0 +1,9 @@
+.grade-th-dragging {
+    opacity: 0.4;
+    background-color: #e0e0e0;
+}
+
+.grade-th-drag-over {
+    border-left: 3px solid var(--primary-color) !important;
+    background-color: rgba(74, 111, 165, 0.1) !important;
+}
