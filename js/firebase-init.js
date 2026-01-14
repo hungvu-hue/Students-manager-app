@@ -1,6 +1,6 @@
 // Firebase Configuration - REPLACE WITH YOUR PROJECT CONFIG
 const firebaseConfig = {
-    apiKey: "AIzaSyBH3XnG_K8e0ZxS_ybEwuPeKhFVuattFmg",
+    apiKey: "AIzaSyBH3XnG_K8eOZxS_ybEwuPeKhFVuattFmg",
     authDomain: "students-manager-app.firebaseapp.com",
     projectId: "students-manager-app",
     storageBucket: "students-manager-app.firebasestorage.app",
@@ -15,6 +15,7 @@ firebase.initializeApp(firebaseConfig);
 // Initialize Services
 const auth = firebase.auth();
 const db = firebase.firestore();
+const analytics = firebase.analytics();
 
 // Cloud Storage Service
 const CloudSync = {
