@@ -24,7 +24,11 @@ const Storage = {
     // Students data
     saveStudents: function (students) {
         const key = this.getUserKey('students');
-        if (key) localStorage.setItem(key, JSON.stringify(students));
+        if (key) {
+            localStorage.setItem(key, JSON.stringify(students));
+            // Sync to Cloud
+            if (window.CloudSync) window.CloudSync.save('students', students);
+        }
     },
 
     getStudents: function () {
@@ -37,7 +41,11 @@ const Storage = {
     // Classes data
     saveClasses: function (classes) {
         const key = this.getUserKey('classes');
-        if (key) localStorage.setItem(key, JSON.stringify(classes));
+        if (key) {
+            localStorage.setItem(key, JSON.stringify(classes));
+            // Sync to Cloud
+            if (window.CloudSync) window.CloudSync.save('classes', classes);
+        }
     },
 
     getClasses: function (schoolId) {
@@ -80,7 +88,11 @@ const Storage = {
     // Subjects data
     saveSubjects: function (subjects) {
         const key = this.getUserKey('subjects');
-        if (key) localStorage.setItem(key, JSON.stringify(subjects));
+        if (key) {
+            localStorage.setItem(key, JSON.stringify(subjects));
+            // Sync to Cloud
+            if (window.CloudSync) window.CloudSync.save('subjects', subjects);
+        }
     },
 
     getSubjects: function (schoolId) {
@@ -162,7 +174,11 @@ const Storage = {
     // Schools data
     saveSchools: function (schools) {
         const key = this.getUserKey('schools');
-        if (key) localStorage.setItem(key, JSON.stringify(schools));
+        if (key) {
+            localStorage.setItem(key, JSON.stringify(schools));
+            // Sync to Cloud
+            if (window.CloudSync) window.CloudSync.save('schools', schools);
+        }
     },
 
     getSchools: function () {
@@ -582,5 +598,38 @@ const Storage = {
         if (!key) return {};
         const comments = localStorage.getItem(key);
         return comments ? JSON.parse(comments) : {};
+    },
+
+    // Global Sync Tool
+    syncAllToCloud: async function () {
+        if (!window.CloudSync) return;
+        const teacher = this.getTeacher();
+        if (!teacher) return;
+
+        console.log("Starting full cloud sync...");
+        await window.CloudSync.save('schools', this.getSchools());
+        await window.CloudSync.save('classes', this.getClasses());
+        await window.CloudSync.save('subjects', this.getSubjects());
+        await window.CloudSync.save('students', this.getStudents());
+        await window.CloudSync.save('attendanceSessions', this.getAttendanceSessions(null));
+        alert("Đã đồng bộ toàn bộ dữ liệu lên đám mây!");
+    },
+
+    pullAllFromCloud: async function () {
+        if (!window.CloudSync) return;
+
+        const schools = await window.CloudSync.load('schools');
+        if (schools) this.saveSchools(schools);
+
+        const classes = await window.CloudSync.load('classes');
+        if (classes) this.saveClasses(classes);
+
+        const subjects = await window.CloudSync.load('subjects');
+        if (subjects) this.saveSubjects(subjects);
+
+        const students = await window.CloudSync.load('students');
+        if (students) this.saveStudents(students);
+
+        console.log("Cloud data pulled successfully.");
     }
 };

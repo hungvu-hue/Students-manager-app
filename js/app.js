@@ -3,15 +3,36 @@ document.addEventListener('DOMContentLoaded', function () {
     // Initialize the app
     initApp();
 
-    // Check if user is already logged in
-    const teacher = Storage.getTeacher();
-    if (teacher) {
-        showAppContent();
-        updateTeacherName(teacher.name);
-        if (window.WordEngine) window.WordEngine.init();
-    } else {
-        showLoginPage();
-    }
+    // Firebase Auth Listener
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            // Check if local teacher session exists, if not, create from Firebase user
+            let teacher = Storage.getTeacher();
+            if (!teacher || teacher.email !== user.email) {
+                // If the user name is not yet in Firebase auth, we'll try to get it from our local authorized list
+                const authList = Storage.getAuthorizedTeachers();
+                const localAuth = authList.find(t => t.email.toLowerCase() === user.email.toLowerCase());
+
+                teacher = {
+                    id: user.uid,
+                    name: localAuth ? localAuth.name : user.displayName || 'Giáo viên',
+                    email: user.email,
+                    role: localAuth ? localAuth.role : 'teacher'
+                };
+                Storage.saveTeacher(teacher);
+            }
+
+            // High Priority: Pull data from cloud immediately after login
+            await Storage.pullAllFromCloud();
+
+            showAppContent();
+            updateTeacherName(teacher.name);
+            if (window.WordEngine) window.WordEngine.init();
+            if (window.Mailbox) window.Mailbox.init();
+        } else {
+            showLoginPage();
+        }
+    });
 
     // One-time migration: Force update 10x10 to 10x6
     if (teacher) {
@@ -520,12 +541,13 @@ function showAppContent() {
         navButtons.forEach(btn => btn.style.display = 'flex');
         // Hide admin tab
         if (adminTab) adminTab.style.display = 'none';
+        if (adminTab) adminTab.style.display = 'none';
         // Switch to default classroom page
         switchPage('classroom');
     }
 }
 
-function handleLogin() {
+async function handleLogin() {
     const email = document.getElementById('teacherEmail').value.trim();
     const password = document.getElementById('teacherPassword').value;
 
@@ -534,37 +556,45 @@ function handleLogin() {
         return;
     }
 
-    const authorizedTeachers = Storage.getAuthorizedTeachers();
-    const teacherAuth = authorizedTeachers.find(t => t.email.toLowerCase() === email.toLowerCase());
+    // Show loading state
+    const loginBtn = document.getElementById('loginBtn');
+    const originalText = loginBtn.textContent;
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Đang đăng nhập...';
 
-    if (teacherAuth && password === teacherAuth.password) {
-        if (teacherAuth.isLocked) {
-            alert('Tài khoản này đã bị khóa. Vui lòng liên hệ quản trị viên.');
-            return;
-        }
+    try {
+        // 1. Try Firebase Authentication
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        // Authentication is handled by onAuthStateChanged listener
+    } catch (error) {
+        // 2. If Firebase fails (e.g., user doesn't exist yet but is in local Auth list)
+        // Check our local "Authorized" list
+        const authorizedTeachers = Storage.getAuthorizedTeachers();
+        const teacherAuth = authorizedTeachers.find(t => t.email.toLowerCase() === email.toLowerCase());
 
-        const teacher = {
-            id: teacherAuth.email,
-            name: teacherAuth.name,
-            email: teacherAuth.email,
-            role: teacherAuth.role,
-            school: teacherAuth.role === 'admin' ? 'Hệ thống Quản trị' : 'Trường học của bạn'
-        };
-
-        Storage.saveTeacher(teacher);
-        updateTeacherName(teacher.name);
-        showAppContent();
-
-        if (teacher.role === 'admin') {
-            showToast('Đã đăng nhập với quyền Quản trị viên');
+        if (teacherAuth && password === teacherAuth.password) {
+            try {
+                // Create Firebase account on the fly for existing local users
+                await auth.createUserWithEmailAndPassword(email, password);
+                showToast("Đã thiết lập tài khoản mây cho bạn!");
+            } catch (createError) {
+                console.error("Firebase Sync Error:", createError);
+                // If creation fails but password matches, still alert something
+                alert('Lỗi đồng bộ mây: ' + error.message);
+            }
         } else {
-            showToast(`Chào mừng ${teacher.name} quay trở lại!`);
+            alert('Email hoặc mật khẩu không đúng!');
+            loginBtn.disabled = false;
+            loginBtn.textContent = originalText;
         }
-        if (window.WordEngine) window.WordEngine.init();
-        if (window.Mailbox) window.Mailbox.init();
-    } else {
-        alert('Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại!');
     }
+}
+
+function handleLogout() {
+    auth.signOut().then(() => {
+        Storage.removeTeacher();
+        location.reload(); // Hard reload to clear state
+    });
 }
 
 function handleUpdatePassword(e) {
