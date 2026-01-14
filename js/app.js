@@ -35,7 +35,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // One-time migration: Force update 10x10 to 10x6
-    if (teacher) {
+    const teacherForMigration = Storage.getTeacher();
+    if (teacherForMigration) {
         const currentSettings = Storage.getGridSettings();
         if (currentSettings.rows === 10 && currentSettings.cols === 10 && currentSettings.size === 100) {
             Storage.saveGridSettings({ rows: 10, cols: 6, size: 100 });
